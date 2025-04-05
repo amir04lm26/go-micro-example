@@ -48,6 +48,29 @@ func main() {
 	}
 }
 
+func connectToDB() *sql.DB {
+	dsn := os.Getenv("DSN")
+
+	for {
+		conn, err := openDB(dsn)
+		if err != nil {
+			log.Println("Postgres not yet ready ...")
+			counts++
+		} else {
+			log.Println("Connected to postgres")
+			return conn
+		}
+
+		if counts > 10 {
+			log.Println(err)
+			return nil
+		}
+
+		log.Println("Backing off for two seconds ...")
+		time.Sleep(2 * time.Second)
+	}
+}
+
 func openDB(dsn string) (*sql.DB, error) {
 	db, err := sql.Open("pgx", dsn)
 	if err != nil {
@@ -60,27 +83,4 @@ func openDB(dsn string) (*sql.DB, error) {
 	}
 
 	return db, nil
-}
-
-func connectToDB() *sql.DB {
-	dsn := os.Getenv("DSN")
-
-	for {
-		conn, err := openDB(dsn)
-		if err != nil {
-			log.Println("Postgres not yet ready ...")
-			counts++
-		} else {
-			log.Println("Connected to p ostgres")
-			return conn
-		}
-
-		if counts > 10 {
-			log.Println(err)
-			return nil
-		}
-
-		log.Println("Backing off for two seconds ...")
-		time.Sleep(2 * time.Second)
-	}
 }
