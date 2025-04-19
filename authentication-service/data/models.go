@@ -78,7 +78,7 @@ func (u *User) GetByEmail(email string) (*User, error) {
 	defer cancel()
 
 	query := `SELECT id, email, first_name, last_name, password, active , created_at, updated_at
-	WHERE email = $1`
+	FROM users WHERE email = $1`
 
 	var user User
 	row := db.QueryRowContext(ctx, query, email)
