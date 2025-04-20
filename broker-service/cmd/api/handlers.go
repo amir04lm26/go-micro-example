@@ -12,6 +12,7 @@ type RequestPayload struct {
 	Action string      `json:"action"`
 	Auth   AuthPayload `json:"auth,omitempty"`
 	Log    LogPayload  `json:"log,omitempty"`
+	Mail   MailPayload `json:"mail,omitempty"`
 }
 
 type AuthPayload struct {
@@ -22,6 +23,13 @@ type AuthPayload struct {
 type LogPayload struct {
 	Name string `json:"name"`
 	Data string `json:"data"`
+}
+
+type MailPayload struct {
+	From    string `json:"from"`
+	To      string `json:"to"`
+	Subject string `json:"subject"`
+	Message string `json:"message"`
 }
 
 func (app *Config) Broker(w http.ResponseWriter, r *http.Request) {
@@ -52,6 +60,8 @@ func (app *Config) HandleSubmission(w http.ResponseWriter, r *http.Request) {
 		app.Authenticate(w, requestPayload.Auth)
 	case "log":
 		app.LogItem(w, requestPayload.Log)
+	case "mail":
+		app.SendMail(w, requestPayload.Mail)
 	default:
 		app.errorJson(w, errors.New("unknown action"))
 	}
@@ -149,6 +159,49 @@ func (app *Config) LogItem(w http.ResponseWriter, entry LogPayload) {
 	var payload jsonResponse
 	payload.Error = false
 	payload.Message = "Logged"
+
+	app.writeJson(w, http.StatusOK, payload)
+}
+
+func (app *Config) SendMail(w http.ResponseWriter, msg MailPayload) {
+	json, err := json.Marshal(msg)
+	if err != nil {
+		app.errorJson(w, err)
+		return
+	}
+
+	// call the mail service
+	mailServiceURL := "http://mail-service/send"
+
+	// post to mail service
+	request, err := http.NewRequest(http.MethodPost, mailServiceURL, bytes.NewBuffer(json))
+	if err != nil {
+		app.errorJson(w, err)
+		return
+	}
+
+	request.Header.Set("Content-Type", "Application/json")
+
+	client := &http.Client{}
+
+	response, err := client.Do(request)
+	if err != nil {
+		app.errorJson(w, err)
+		return
+	}
+	defer response.Body.Close()
+
+	// make sure we get right status code
+	if response.StatusCode != http.StatusOK {
+		app.errorJson(w, errors.New("error calling mail service"), http.StatusInternalServerError)
+		return
+	}
+
+	// send back json
+	payload := jsonResponse{
+		Error:   false,
+		Message: fmt.Sprintf("Message send to %s", msg.To),
+	}
 
 	app.writeJson(w, http.StatusOK, payload)
 }
