@@ -1,17 +1,34 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"log"
+	"math"
+	"net"
 	"net/http"
+	"time"
+
+	amqp "github.com/rabbitmq/amqp091-go"
 )
 
 const webPort = "80"
 
-type Config struct{}
+type Config struct {
+	rabit *amqp.Connection
+}
 
 func main() {
-	app := Config{}
+	// try to connect to rabbitmq
+	rabbitConn, err := connectToRabbitMQ()
+	if err != nil {
+		log.Fatalln(err)
+	}
+	defer rabbitConn.Close()
+
+	app := Config{
+		rabit: rabbitConn,
+	}
 
 	log.Printf("Starting broker service on port %s\r\n", webPort)
 
@@ -22,8 +39,44 @@ func main() {
 	}
 
 	// start the server
-	err := srv.ListenAndServe()
+	err = srv.ListenAndServe()
 	if err != nil {
 		log.Panic(err)
 	}
+}
+
+func connectToRabbitMQ() (*amqp.Connection, error) {
+	var counts int64
+	var backOff = 1 * time.Second
+	var connection *amqp.Connection
+
+	// don't continue until rabbit is ready
+	for {
+		c, err := amqp.Dial("amqp://root:123456@rabbitmq")
+		if err == nil {
+			log.Println("Connected to RabbitMQ!")
+			connection = c
+			break
+		}
+
+		var netErr net.Error
+		if errors.As(err, &netErr) {
+			log.Println("RabbitMQ not yet ready...")
+		} else {
+			log.Println("Non-network error:", err)
+			return nil, err
+		}
+
+		counts++
+		if counts > 5 {
+			log.Println(err)
+			return nil, err
+		}
+
+		backOff = time.Duration(math.Pow(float64(counts), 2)) * time.Second
+		log.Println("backing off...")
+		time.Sleep(backOff)
+	}
+
+	return connection, nil
 }
