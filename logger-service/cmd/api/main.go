@@ -26,6 +26,18 @@ import (
 	go run ./cmd/api
 */
 
+// NOTE: Install grpc tools
+/*
+	go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
+	go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
+	brew install protobuf
+*/
+
+// NOTE: Use protoc tools
+/*
+	protoc --go_out=. --go_opt=paths=source_relative --go-grpc_out=. --go-grpc_opt=paths=source_relative logs.proto
+*/
+
 const (
 	webPort  = "80"
 	rpcPort  = "5001"
@@ -69,6 +81,9 @@ func main() {
 		log.Panicln(err)
 	}
 	go app.rpcListen()
+
+	// register gRPC server
+	go app.gRPCListen()
 
 	// start web server
 	app.serveHttp()
